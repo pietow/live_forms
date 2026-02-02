@@ -1,10 +1,42 @@
-import { createClient, type Client } from '@libsql/client'
-import { Contact } from './schema'
+'use server'
 
-export async function insertContact({ name, email, reason, notes }: Contact) {
+import { createClient, type Client } from '@libsql/client'
+import { redirect } from 'next/navigation'
+import { contactSchema } from './schema'
+import z from 'zod'
+
+type Err = { message: string}
+
+type FieldErrors = {
+   name: Err | null
+   email: Err | null
+   reason: Err | null
+}
+
+type ActionState = {
+    ok: boolean
+    error:string
+   // formData: FormData
+}
+
+
+export async function insertContact(previousState: ActionState, formData: FormData) {
+    const parsedResult = contactSchema.safeParse(Object.fromEntries(formData))
+
+    if (!parsedResult.success) {
+        return {
+            ok: false,
+            error: "Konnte nicht speichern - Ungültige Eingabewerte",
+            formData,
+            errors: formatZodErrors(parsedResult.error)
+        }
+    }
+
+    const { name, email, reason, notes } =parsedResult.data
+
     let client: Client | undefined
     let ok = true
-    let err: Error | undefined
+    let error: string = ''
 
     try {
         client = createClient({
@@ -13,16 +45,45 @@ export async function insertContact({ name, email, reason, notes }: Contact) {
 
         await client.execute({
             sql: 'INSERT INTO contacts(name, email, reason, notes) VALUES (?, ?, ?, ?)',
-            args: [name, email, reason, notes],
+            args: [name, email, reason, notes ? notes : null ],
         })
     } catch (e) {
         ok = false
-        err = e as Error
+        error = e instanceof Error ? e.message : 'Probleme beim speicherns'
     }
 
     if (client) {
         client.close()
     }
 
-    return { ok, err }
+    if (ok) {
+        redirect(`/thanks/?name=${encodeURIComponent(name)}`)
+    }
+
+    return {ok, error, formData, errors: {name: null, email: null, reason:null}}
+
 }
+
+function formatZodErrors(error: z.ZodError): FieldErrors {
+    const formattedErrors: FieldErrors = {
+        name: null,
+        email: null,
+        reason: null,
+    }
+
+    for (const issue of error.issues) {
+        const field = issue.path[0]
+        if  (field === 'name' && !formattedErrors.name ) {
+            formattedErrors.name = { message: issue.message }
+        } else if (field === 'email' && !formattedErrors.email ) {
+            formattedErrors.email = { message: issue.message }
+        } else if (field === 'reason' && !formattedErrors.reason ) {
+            formattedErrors.reason = { message: issue.message }
+        }
+    }
+
+    return formattedErrors
+
+}
+
+//formatZodErrors(parsedResult.error)

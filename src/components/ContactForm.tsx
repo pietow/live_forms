@@ -1,53 +1,91 @@
 'use client'
 
-import { Contact } from "@/data/schema"
-import { useRouter } from "next/navigation"
+import { insertContact } from '@/data/insertContact'
+import { error } from 'console'
+import { useActionState } from 'react'
 
 export function ContactForm() {
-    const router = useRouter()
-    async function handleAction(formData: FormData) {
-        console.log('formData: ', formData)
-        const contact = Object.fromEntries(formData) as Contact
-        console.log('contact object: ', contact)
-
-        const response = await fetch('/api', {
-            method: 'POST',
-            body: JSON.stringify(contact),
+    const [{ ok, error, errors, formData }, formAction, isPending] =
+        useActionState(insertContact, {
+            ok: false,
+            error: '',
+            formData: new FormData(),
+            errors: { name: null, email: null, reason: null },
         })
-
-        if (!response.ok) {
-            console.error('Something went wrong')
-            return
-        }
-
-        router.push('/thanks?name='+ encodeURIComponent(contact.name))
-
-    }
     return (
-        <form action={handleAction}>
+        <form action={formAction}>
             <div className="field">
                 <label htmlFor="name">Dein Name</label>
-                <input type="text" id="name" name="name" />
+                <input
+                    type="text"
+                    id="name"
+                    name="name"
+                    defaultValue={(formData.get('name') ?? '') as string}
+                />
+                <FieldError serverError={errors.name} errorId="name-error" />
             </div>
             <div className="field">
                 <label htmlFor="email">Deine email Adresse</label>
-                <input type="email" id="email" name="email" />
+                <input
+                    type="email"
+                    id="email"
+                    name="email"
+                    defaultValue={(formData.get('email') ?? '') as string}
+                />
+                <FieldError serverError={errors.email} errorId="email-error" />
             </div>
 
             <div className="field">
                 <label htmlFor="grund">Grund für Kontak</label>
-                <select name="reason" id="grund">
+                <select
+                    name="reason"
+                    id="grund"
+                    defaultValue={(formData.get('reason') ?? '') as string}
+                >
                     <option value=""></option>
                     <option value="Support">Support</option>
                     <option value="Feedback">Feedback</option>
                     <option value="Andere">Andere</option>
                 </select>
+                <FieldError serverError={errors.reason} errorId="reason-error" />
             </div>
             <div className="field">
                 <label htmlFor="notes">Zusätzlice Kommentar</label>
-                <textarea id="notes" name="notes" />
+                <textarea
+                    id="notes"
+                    name="notes"
+                    defaultValue={(formData.get('notes') ?? '') as string}
+                />
             </div>
-            <button type="submit">Submit</button>
+            {!ok && (
+                <p role="alert" className="error">
+                    {error}
+                </p>
+            )}
+            {isPending && <p role="alert">Saving ...</p>}
+            <button type="submit" disabled={isPending}>
+                Submit
+            </button>
         </form>
+    )
+}
+
+type Err = { message?: string } | null
+
+function FieldError({
+    serverError,
+    errorId,
+}: {
+    serverError: Err
+    errorId: string
+}) {
+    if (!serverError) {
+        return null
+    }
+
+    return (
+        <div id={errorId} role="alert">
+            {serverError.message}
+        </div>
     )
 }
