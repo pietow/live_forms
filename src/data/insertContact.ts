@@ -4,6 +4,7 @@ import { Contact } from './schema'
 export async function insertContact({ name, email, reason, notes }: Contact) {
     let client: Client | undefined
     let ok = true
+    let err: Error | undefined
 
     try {
         client = createClient({
@@ -16,11 +17,12 @@ export async function insertContact({ name, email, reason, notes }: Contact) {
         })
     } catch (e) {
         ok = false
+        err = e as Error
     }
 
     if (client) {
         client.close()
     }
 
-    return { ok }
+    return { ok, err }
 }

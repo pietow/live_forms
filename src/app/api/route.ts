@@ -6,6 +6,7 @@ export async function POST(request: NextRequest) {
     const data = await request.json()
     console.log(data)
     const result = await insertContact(data)
+    console.log(result.err)
 
     if (result.ok) {
         return Response.json({}, { status: 201 }) 

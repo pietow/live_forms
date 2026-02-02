@@ -20,7 +20,7 @@ export function ContactForm() {
             return
         }
 
-        router.push('/thanks')
+        router.push('/thanks?name='+ encodeURIComponent(contact.name))
 
     }
     return (
