@@ -5,34 +5,42 @@ import { redirect } from 'next/navigation'
 import { contactSchema } from './schema'
 import z from 'zod'
 
-type Err = { message: string}
+type Err = { message: string }
 
 type FieldErrors = {
-   name: Err | null
-   email: Err | null
-   reason: Err | null
+    name: Err | null
+    email: Err | null
+    reason: Err | null
 }
 
 type ActionState = {
     ok: boolean
-    error:string
-   // formData: FormData
+    error: string
+    formData: FormData
+    errors: FieldErrors
+    attempts: number
 }
 
-
-export async function insertContact(previousState: ActionState, formData: FormData) {
+export async function insertContact(
+    previousState: ActionState,
+    formData: FormData,
+) {
     const parsedResult = contactSchema.safeParse(Object.fromEntries(formData))
+
+    const attempts = previousState.attempts + 1
 
     if (!parsedResult.success) {
         return {
+            ...previousState,
             ok: false,
-            error: "Konnte nicht speichern - Ungültige Eingabewerte",
+            error: 'Konnte nicht speichern - Ungültige Eingabewerte',
             formData,
-            errors: formatZodErrors(parsedResult.error)
+            errors: formatZodErrors(parsedResult.error),
+            attempts: attempts,
         }
     }
 
-    const { name, email, reason, notes } =parsedResult.data
+    const { name, email, reason, notes } = parsedResult.data
 
     let client: Client | undefined
     let ok = true
@@ -45,7 +53,7 @@ export async function insertContact(previousState: ActionState, formData: FormDa
 
         await client.execute({
             sql: 'INSERT INTO contacts(name, email, reason, notes) VALUES (?, ?, ?, ?)',
-            args: [name, email, reason, notes ? notes : null ],
+            args: [name, email, reason, notes ? notes : null],
         })
     } catch (e) {
         ok = false
@@ -60,8 +68,13 @@ export async function insertContact(previousState: ActionState, formData: FormDa
         redirect(`/thanks/?name=${encodeURIComponent(name)}`)
     }
 
-    return {ok, error, formData, errors: {name: null, email: null, reason:null}}
-
+    return {
+        ok,
+        error,
+        formData,
+        errors: { name: null, email: null, reason: null },
+        attempts: attempts,
+    }
 }
 
 function formatZodErrors(error: z.ZodError): FieldErrors {
@@ -73,17 +86,16 @@ function formatZodErrors(error: z.ZodError): FieldErrors {
 
     for (const issue of error.issues) {
         const field = issue.path[0]
-        if  (field === 'name' && !formattedErrors.name ) {
+        if (field === 'name' && !formattedErrors.name) {
             formattedErrors.name = { message: issue.message }
-        } else if (field === 'email' && !formattedErrors.email ) {
+        } else if (field === 'email' && !formattedErrors.email) {
             formattedErrors.email = { message: issue.message }
-        } else if (field === 'reason' && !formattedErrors.reason ) {
+        } else if (field === 'reason' && !formattedErrors.reason) {
             formattedErrors.reason = { message: issue.message }
         }
     }
 
     return formattedErrors
-
 }
 
 //formatZodErrors(parsedResult.error)
